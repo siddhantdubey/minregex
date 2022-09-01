@@ -1,3 +1,5 @@
+pub mod nfa;
+
 #[cfg(test)]
 mod tests {
     #[test]
