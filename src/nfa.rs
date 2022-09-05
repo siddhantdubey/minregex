@@ -1,95 +1,105 @@
-use std::vec::Vec;
-use std::iter::Map;
+use std::collections::HashMap;
 
 pub struct State {
-    pub name: String,
-    pub transitions: Vec<Transition>,
-    pub starts_groups: (),
-    pub ends_groups: (),
-}
-
-pub struct Transition {
-    pub next_state: State,
-    pub matcher: char,
+    name: String,
+    transitions: Vec<Transition>,
+    starts_groups: Vec<String>,
+    ends_groups: Vec<String>,
 }
 
 impl State {
-    fn new(name: String, transitions: Vec<Transition>) -> Self {
+    pub fn new(name: String) -> State {
         State {
             name,
-            transitions,
-            starts_groups: (),
-            ends_groups: (),
+            transitions: Vec::new(),
+            starts_groups: Vec::new(),
+            ends_groups: Vec::new(),
         }
     }
 
-    fn add_transition(&mut self, next_state: State, matcher: char) {
-        let transition: Transition = Transition {next_state, matcher};
+    pub fn add_transition(&mut self, transition: Transition) {
         self.transitions.push(transition);
     }
 
-    fn undo_transition(&mut self, next_state: State, matcher: char) {
-        let transition: Transition = Transition {next_state, matcher};
+    pub fn unshift_transition(&mut self, transition: Transition) {
         self.transitions.insert(0, transition);
     }
 }
 
-pub trait Matcher {
-    fn matches(&self, _character: char) -> bool {
-        false
-    }
+pub struct Transition {
+    pub to: String,
+    pub condition: Condition,
+}
 
-    fn is_epsilon()  -> bool {
-        false
+impl Transition {
+    pub fn new(to: String, condition: Condition) -> Transition {
+        Transition {
+            to,
+            condition,
+        }
     }
 }
 
-pub struct CharacterMatcher {
-    pub c: char,
+pub enum Condition {
+    Any,
+    Char(char),
+    Range(char, char),
+    Set(Vec<char>),
+    Not(Box<Condition>),
 }
 
-impl Matcher for CharacterMatcher {
-    fn matches(&self, character: char) -> bool {
-        character == self.c 
-    }
-
-    fn is_epsilon() -> bool {
-        false
-    }
-}
-
-pub struct EpsilonMatcher {}
-
-impl Matcher for EpsilonMatcher {
-    fn matches(&self, _character: char) -> bool {
-        true
-    }
-
-    fn is_epsilon() -> bool{
-        true
+impl Condition {
+    pub fn matches(&self, c: char) -> bool {
+        match *self {
+            Condition::Any => true,
+            Condition::Char(ch) => ch == c,
+            Condition::Range(start, end) => start <= c && c <= end,
+            Condition::Set(ref set) => set.contains(&c),
+            Condition::Not(ref condition) => !condition.matches(c),
+        }
     }
 }
 
-pub struct EngineNFA {
-    states: Map<State, State>,
-    initial_state: State,
-    ending_states: Vec<State>,
+pub struct NFA {
+    states: HashMap<String, State>,
+    start_state: String,
+    end_states: Vec<String>,
 }
 
-impl EngineNFA {
-    fn new(&self, states: Map<State, State>, initial_state: State, ending_states: Vec<State>) -> Self {
-        EngineNFA {
-            states,
-            initial_state,
-            ending_states,
+impl NFA {
+    fn new() -> NFA {
+        NFA {
+            states: HashMap::new(),
+            start_state: String::new(),
+            end_states: Vec::new(),
         }
     }
 
-    fn set_initial_state(&mut self, state: State) {
-        self.initial_state = state;
+    fn set_start_state(&mut self, state: String) {
+        self.start_state = state;
     }
 
-    fn set_ending_states(&mut self, states: Vec<State>) {
-        self.ending_states = states;
+    fn set_end_states(&mut self, states: Vec<String>) {
+        self.end_states = states;
+    }
+
+    fn add_state(&mut self, state: State) {
+        self.states.insert(state.name.clone(), state);
+    }
+
+    fn declare_states(&mut self, names: Vec<String>) {
+        for name in names {
+            self.add_state(State::new(name));
+        }
+    }
+
+    fn add_transition(&mut self, from: String, to: String, condition: Condition) {
+        let state = self.states.get_mut(&from).unwrap();
+        state.add_transition(Transition::new(to, condition));
+    }
+
+    fn unshift_transition(&mut self, from: String, to: String, condition: Condition) {
+        let state = self.states.get_mut(&from).unwrap();
+        state.unshift_transition(Transition::new(to, condition));
     }
 }
